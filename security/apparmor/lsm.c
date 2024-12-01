@@ -770,7 +770,7 @@ static int apparmor_sk_alloc_security(struct sock *sk, int family, gfp_t flags)
 	if (!ctx)
 		return -ENOMEM;
 
-	SK_CTX(sk) = ctx;
+	*SK_CTX(sk) = *(struct sk_security_struct *)ctx;
 
 	return 0;
 }
@@ -780,9 +780,9 @@ static int apparmor_sk_alloc_security(struct sock *sk, int family, gfp_t flags)
  */
 static void apparmor_sk_free_security(struct sock *sk)
 {
-	struct aa_sk_ctx *ctx = SK_CTX(sk);
+	struct aa_sk_ctx *ctx = (struct aa_sk_ctx *)&SK_CTX(sk)[0];
 
-	SK_CTX(sk) = NULL;
+	memset(SK_CTX(sk), 0, sizeof(struct sk_security_struct));
 	aa_put_label(ctx->label);
 	aa_put_label(ctx->peer);
 	kfree(ctx);
@@ -794,8 +794,8 @@ static void apparmor_sk_free_security(struct sock *sk)
 static void apparmor_sk_clone_security(const struct sock *sk,
 				       struct sock *newsk)
 {
-	struct aa_sk_ctx *ctx = SK_CTX(sk);
-	struct aa_sk_ctx *new = SK_CTX(newsk);
+	struct aa_sk_ctx *ctx = (struct aa_sk_ctx *)&SK_CTX(sk)[0];
+	struct aa_sk_ctx *new = (struct aa_sk_ctx *)&SK_CTX(newsk)[0];
 
 	if (new->label)
 		aa_put_label(new->label);
@@ -851,7 +851,7 @@ static int apparmor_socket_post_create(struct socket *sock, int family,
 		label = aa_get_current_label();
 
 	if (sock->sk) {
-		struct aa_sk_ctx *ctx = SK_CTX(sock->sk);
+		struct aa_sk_ctx *ctx = (struct aa_sk_ctx *)&SK_CTX(sock->sk)[0];
 
 		aa_put_label(ctx->label);
 		ctx->label = aa_get_label(label);
@@ -1041,7 +1041,7 @@ static int apparmor_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 
 static struct aa_label *sk_peer_label(struct sock *sk)
 {
-	struct aa_sk_ctx *ctx = SK_CTX(sk);
+	struct aa_sk_ctx *ctx = (struct aa_sk_ctx *)&SK_CTX(sk)[0];
 
 	if (ctx->peer)
 		return ctx->peer;
@@ -1125,7 +1125,7 @@ static int apparmor_socket_getpeersec_dgram(struct socket *sock,
  */
 static void apparmor_sock_graft(struct sock *sk, struct socket *parent)
 {
-	struct aa_sk_ctx *ctx = SK_CTX(sk);
+	struct aa_sk_ctx *ctx = (struct aa_sk_ctx *)&SK_CTX(sk)[0];
 
 	if (!ctx->label)
 		ctx->label = aa_get_current_label();
